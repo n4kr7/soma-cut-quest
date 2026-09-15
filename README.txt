@@ -1,23 +1,19 @@
-SOMA'S CUT QUEST v2
+SOMA'S CUT QUEST v2.1 — ANDROID PWA FIX
 
-QUICK START (WINDOWS)
-1. Extract the ZIP.
-2. Keep all files together.
-3. Double-click index.html.
-4. Your progress is stored in that browser on that computer.
+This update adds:
+- 192x192 install icon
+- 512x512 install icon
+- 512x512 maskable Android icon
+- PWA id, scope and start_url
+- Updated offline cache/service worker
 
-WHAT CHANGED IN v2
-- Gym exercises now support multiple sets. Each exercise starts with 3 set rows.
-- Use + Set to add more, and X to remove a set.
-- A visible "New Day / Clear Form" button is at the top of Daily Quest.
-- Progress now has weight and strength graphs.
-- "Export Progress PDF" downloads a real PDF report, not a JSON file.
-- The PDF includes summary stats, graphs, recent weigh-ins, workouts and current PRs.
-- Existing v1 browser progress is migrated automatically when possible.
+UPDATE YOUR EXISTING GITHUB REPOSITORY:
+1. Extract this ZIP.
+2. Upload ALL files inside the Soma_Cut_Quest_v2_1 folder to the ROOT of your existing repository.
+3. Replace the existing files when GitHub asks / commit the changes.
+4. Wait for GitHub Pages to deploy.
+5. On Android Chrome, revisit the site and refresh it.
+6. If Chrome still shows an old cached version, close the tab, reopen the site, and refresh once.
+7. Chrome > menu > Install app.
 
-PHONE / PWA
-For install-to-home-screen/offline PWA behavior, serve this folder over HTTPS (for example GitHub Pages).
-Opening index.html directly is fine for testing, but PWA installation requires a secure hosted origin.
-
-PDF EXPORT
-The PDF exporter is built directly into app.js, so there is no external PDF dependency.
+Your existing on-phone progress is stored by the site's browser storage and should remain when updating these app files, as long as the GitHub Pages URL stays the same.
