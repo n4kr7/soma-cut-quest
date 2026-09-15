@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>Soma's Cut Quest v2</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Soma's Cut Quest</h1><p>Fat loss + strength progression RPG</p></div>
+    <div class="level">LV <span id="level">1</span> · <span id="xp">0</span> XP</div>
+  </header>
+
+  <nav>
+    <button data-tab="daily" class="active">Daily Quest</button>
+    <button data-tab="gym">Gym Arena</button>
+    <button data-tab="progress">Progress</button>
+  </nav>
+
+  <section id="daily" class="tab active">
+    <div class="sectionHead">
+      <div><h2>Daily Quest</h2><p id="todayLabel"></p></div>
+      <button id="newDay" class="secondary">＋ New Day / Clear Form</button>
+    </div>
+
+    <div class="grid stats">
+      <article><small>Calories remaining</small><strong id="remaining">2300</strong><span>/ 2300 kcal</span></article>
+      <article><small>Protein</small><strong><span id="proteinNow">0</span>g</strong><span>/ 150-170g</span></article>
+      <article><small>Steps</small><strong id="stepsNow">0</strong><span>/ 8,000+</span></article>
+    </div>
+
+    <article>
+      <h2>Log today</h2>
+      <div class="fields">
+        <label>Calories eaten<input id="cal" type="number" min="0"></label>
+        <label>Protein (g)<input id="protein" type="number" min="0"></label>
+        <label>Steps<input id="steps" type="number" min="0"></label>
+        <label>Weight kg (optional)<input id="weight" type="number" min="40" max="250" step=".1"></label>
+      </div>
+      <div class="checks">
+        <label><input id="balanced" type="checkbox"> Balanced portions</label>
+        <label><input id="honest" type="checkbox"> Logged honestly</label>
+      </div>
+      <button id="saveDay" class="primary">Complete Daily Quest</button>
+      <p id="dayMsg"></p>
+    </article>
+
+    <article><h2>Today's missions</h2><div id="missions"></div></article>
+  </section>
+
+  <section id="gym" class="tab">
+    <article>
+      <div class="arenaHead">
+        <div><h2>Gym Arena</h2><p>Log every working set. Beat your own previous bests.</p></div>
+        <strong>Weekly quest: <span id="gymWeek">0</span>/3 sessions</strong>
+      </div>
+      <label>Choose workout
+        <select id="workout"><option>Push</option><option>Pull</option><option>Legs</option></select>
+      </label>
+      <div id="exerciseList"></div>
+      <button id="saveGym" class="primary">Finish Workout + Earn XP</button>
+      <p id="gymMsg"></p>
+    </article>
+    <article>
+      <h2>Battle rules</h2>
+      <p>Each exercise starts with 3 set rows. Add or remove sets as needed. A PR is based on your strongest set: a heavier weight, or more reps at the same weight. Completing the workout still earns consistency XP even with no PR.</p>
+    </article>
+  </section>
+
+  <section id="progress" class="tab">
+    <div class="grid stats">
+      <article><small>Start</small><strong>102.3 kg</strong></article>
+      <article><small>Current</small><strong><span id="currentWeight">102.3</span> kg</strong></article>
+      <article><small>First boss</small><strong>&lt;100 kg</strong></article>
+    </div>
+
+    <article>
+      <h2>Boss Path</h2>
+      <div class="boss"><span>Boss 1 · Break 100</span><strong>99.9 kg</strong></div>
+      <div class="bar"><i id="bossBar"></i></div>
+      <div class="boss"><span>Boss 2</span><strong>95 kg</strong></div>
+      <div class="boss"><span>Boss 3</span><strong>90 kg</strong></div>
+    </article>
+
+    <div class="chartGrid">
+      <article><h2>Weight trend</h2><canvas id="weightChart" width="700" height="300"></canvas><p class="muted">Uses your logged weigh-ins.</p></article>
+      <article><h2>Strength trend</h2><label>Exercise <select id="chartExercise"></select></label><canvas id="strengthChart" width="700" height="300"></canvas><p class="muted">Plots your best set weight for each logged session.</p></article>
+    </div>
+
+    <article><h2>Recent weigh-ins</h2><div id="weights"></div></article>
+    <article><h2>Recent workouts</h2><div id="workouts"></div></article>
+
+    <article class="exportBox">
+      <div><h2>Progress Report</h2><p>Creates a real PDF with your stats, weight graph, strength graph, recent logs and PRs.</p></div>
+      <button id="exportPdf" class="primary">Export Progress PDF</button>
+    </article>
+
+    <article><button id="resetAll" class="danger">Reset all data</button></article>
+  </section>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
