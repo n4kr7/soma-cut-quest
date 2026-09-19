@@ -1,19 +1,20 @@
-SOMA'S CUT QUEST v2.1 — ANDROID PWA FIX
+SOMA'S CUT QUEST v3
 
-This update adds:
-- 192x192 install icon
-- 512x512 install icon
-- 512x512 maskable Android icon
-- PWA id, scope and start_url
-- Updated offline cache/service worker
+SAFE UPGRADE FROM v2.1
+- Upload/replace ALL files in the root of the SAME GitHub Pages repository.
+- Do NOT uninstall the current PWA or clear browser/site data before opening v3.
+- v3 deliberately keeps the existing localStorage key: somaCutQuestV2.
+- Existing XP, days, weight history, workouts and PRs are migrated in place.
+- After v3 opens successfully, go to Save Vault and download a Full Backup.
 
-UPDATE YOUR EXISTING GITHUB REPOSITORY:
-1. Extract this ZIP.
-2. Upload ALL files inside the Soma_Cut_Quest_v2_1 folder to the ROOT of your existing repository.
-3. Replace the existing files when GitHub asks / commit the changes.
-4. Wait for GitHub Pages to deploy.
-5. On Android Chrome, revisit the site and refresh it.
-6. If Chrome still shows an old cached version, close the tab, reopen the site, and refresh once.
-7. Chrome > menu > Install app.
-
-Your existing on-phone progress is stored by the site's browser storage and should remain when updating these app files, as long as the GitHub Pages URL stays the same.
+NEW IN v3
+- Once-per-calendar-day login XP + gentle streak bonus (no XP farming on refresh).
+- Missed days reset only the streak counter; no XP/progress is removed.
+- Daily entries update in place and only newly completed missions add XP.
+- Full JSON backup + restore.
+- Weekly average weight chart.
+- Weekly quests with one-time weekly XP claims.
+- Exercise levels based on completed working sets.
+- Achievement cabinet.
+- Improved PDF report.
+- Network-first service worker so GitHub updates appear more reliably.

@@ -1,168 +1,46 @@
-const KEY='somaCutQuestV2';
-const OLDKEY='somaCutQuestV1';
-const exercises={
- Push:['Incline Press','Flat Bench Press','Pec Deck / Chest Press','Shoulder Press','Lateral Cable Raise','Triceps Pushdown','Overhead Triceps Extension'],
- Pull:['Lat Pulldown','Cable Row','Rear-Delt Fly / Face Pull','Hammer Curl','Cable Preacher / Preacher Curl'],
- Legs:['Leg Press','Romanian Deadlift','Seated Hamstring Curl','Leg Extension','Calf Raise']
-};
-const allExercises=[...exercises.Push,...exercises.Pull,...exercises.Legs];
-const $=id=>document.getElementById(id);
-function today(){return new Date().toISOString().slice(0,10)}
-function fresh(){return {xp:0,weight:102.3,weights:[],days:[],gym:[],prs:{}}}
-let S=JSON.parse(localStorage.getItem(KEY)||'null');
-if(!S){
-  const old=JSON.parse(localStorage.getItem(OLDKEY)||'null');
-  S=old||fresh();
-  if(old){localStorage.setItem(KEY,JSON.stringify(S))}
-}
-S.gym=S.gym||[];S.prs=S.prs||{};S.weights=S.weights||[];S.days=S.days||[];
-
-function save(){localStorage.setItem(KEY,JSON.stringify(S));render()}
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('.tab,nav button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');$(b.dataset.tab).classList.add('active');
-  if(b.dataset.tab==='progress')drawCharts();
-});
-
-function currentDay(){return S.days.filter(d=>d.date===today()).at(-1)||{}}
-function render(){
- $('xp').textContent=S.xp;
- $('level').textContent=Math.floor(S.xp/250)+1;
- $('currentWeight').textContent=S.weight.toFixed(1);
- $('todayLabel').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
- let d=currentDay();
- $('remaining').textContent=2300-(d.cal||0);
- $('proteinNow').textContent=d.protein||0;
- $('stepsNow').textContent=(d.steps||0).toLocaleString();
- let pct=Math.max(0,Math.min(100,(102.3-S.weight)/2.4*100));$('bossBar').style.width=pct+'%';
- $('weights').innerHTML=S.weights.slice(-10).reverse().map(w=>`<div class='mission'><span>${w.date}</span><strong>${w.value.toFixed(1)} kg</strong></div>`).join('')||'<p>No weigh-ins logged yet.</p>';
- $('workouts').innerHTML=S.gym.slice(-8).reverse().map(g=>`<div class='workoutRow'><span>${g.date.slice(0,10)} · ${g.type}</span><strong>${g.prs||0} PR${(g.prs||0)===1?'':'s'}</strong></div>`).join('')||'<p>No workouts logged yet.</p>';
- let weekAgo=new Date(Date.now()-7*864e5);$('gymWeek').textContent=S.gym.filter(g=>new Date(g.date)>=weekAgo).length;
- renderMissions(d); populateChartExercise(); drawCharts();
-}
-function renderMissions(d){
- let ms=[['Calories around target',d.cal>0&&Math.abs(d.cal-2300)<=200],['Protein 150g+',d.protein>=150],['8,000+ steps',d.steps>=8000],['Balanced portions',d.balanced],['Honest log',d.honest]];
- $('missions').innerHTML=ms.map(m=>`<div class='mission ${m[1]?'done':''}'><span>${m[1]?'✓':'○'} ${m[0]}</span><strong>${m[1]?'+XP':''}</strong></div>`).join('');
-}
-function clearDayForm(){
- ['cal','protein','steps','weight'].forEach(id=>$(id).value='');
- ['balanced','honest'].forEach(id=>$(id).checked=false);
- $('dayMsg').textContent='Form cleared. Your saved progress is untouched.';
-}
-$('newDay').onclick=clearDayForm;
-$('saveDay').onclick=()=>{
- let cal=+$('cal').value,protein=+$('protein').value,steps=+$('steps').value,w=+$('weight').value;
- if(!cal&&!protein&&!steps){$('dayMsg').textContent='Enter today’s numbers first.';return}
- let pts=10+(protein>=150?25:0)+(steps>=8000?20:0)+($('balanced').checked?15:0)+($('honest').checked?10:0)+(Math.abs(cal-2300)<=200?10:0);
- let day={date:today(),cal,protein,steps,balanced:$('balanced').checked,honest:$('honest').checked};
- S.days.push(day);S.xp+=pts;
- if(w>=40&&w<=250){S.weight=w;S.weights.push({date:day.date,value:w})}
- $('dayMsg').textContent=`Quest complete: +${pts} XP. ${cal>2500?'Above target today is not failure - return to normal tomorrow.':'Nice work.'}`;
- save();
-};
-
-let draftSets={};
-function setKey(type,e){return type+'|'+e}
-function defaultSets(type,e){const k=setKey(type,e);if(!draftSets[k])draftSets[k]=[{weight:'',reps:''},{weight:'',reps:''},{weight:'',reps:''}];return draftSets[k]}
-function buildExercises(){
- let type=$('workout').value;
- $('exerciseList').innerHTML=exercises[type].map((e,i)=>{
-   let pr=S.prs[e],sets=defaultSets(type,e);
-   return `<div class='exercise' data-ex='${i}'><div class='exerciseTop'><div><strong>${e}</strong><div>${pr?`Best: ${pr.weight} kg × ${pr.reps} <span class='badge'>PR</span>`:'No score yet'}</div></div><button class='addSet' data-add='${i}' type='button'>+ Set</button></div><div class='sets'>${sets.map((s,j)=>setRow(i,j,s)).join('')}</div></div>`
- }).join('');
- document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{let e=exercises[type][+b.dataset.add];defaultSets(type,e).push({weight:'',reps:''});buildExercises()});
- bindSetInputs();
-}
-function setRow(i,j,s){return `<div class='setRow'><div class='setNo'>Set ${j+1}</div><label>kg<input data-set-ex='${i}' data-set='${j}' data-k='weight' type='number' min='0' step='.5' value='${s.weight}'></label><label>reps<input data-set-ex='${i}' data-set='${j}' data-k='reps' type='number' min='0' value='${s.reps}'></label><button class='removeSet' data-remove-ex='${i}' data-remove='${j}' type='button' aria-label='Remove set'>×</button></div>`}
-function bindSetInputs(){
- let type=$('workout').value;
- document.querySelectorAll('[data-set-ex]').forEach(inp=>inp.oninput=()=>{let e=exercises[type][+inp.dataset.setEx];defaultSets(type,e)[+inp.dataset.set][inp.dataset.k]=inp.value});
- document.querySelectorAll('[data-remove-ex]').forEach(b=>b.onclick=()=>{let e=exercises[type][+b.dataset.removeEx],arr=defaultSets(type,e);if(arr.length>1)arr.splice(+b.dataset.remove,1);buildExercises()});
-}
-$('workout').onchange=buildExercises;
-$('saveGym').onclick=()=>{
- let type=$('workout').value,prs=0,logged=0,sessionExercises={};
- exercises[type].forEach(e=>{
-   let sets=defaultSets(type,e).map(s=>({weight:+s.weight,reps:+s.reps})).filter(s=>s.weight>0&&s.reps>0);
-   if(!sets.length)return;logged++;
-   sessionExercises[e]=sets;
-   let best=sets.slice().sort((a,b)=>b.weight-a.weight||b.reps-a.reps)[0],old=S.prs[e];
-   if(!old||best.weight>old.weight||(best.weight===old.weight&&best.reps>old.reps)){S.prs[e]={weight:best.weight,reps:best.reps};prs++}
- });
- if(!logged){$('gymMsg').textContent='Log at least one exercise set.';return}
- let pts=30+prs*15;S.xp+=pts;S.gym.push({date:new Date().toISOString(),type,prs,exercises:sessionExercises});
- $('gymMsg').textContent=`${type} cleared: +${pts} XP${prs?` · ${prs} new PR${prs>1?'s':''}!`:' · Consistency XP earned.'}`;
- Object.keys(draftSets).filter(k=>k.startsWith(type+'|')).forEach(k=>delete draftSets[k]);
- save();buildExercises();
-};
-
-function populateChartExercise(){
- let sel=$('chartExercise'),prev=sel.value;
- let used=allExercises.filter(e=>S.gym.some(g=>g.exercises&&g.exercises[e]));
- let opts=used.length?used:allExercises;
- sel.innerHTML=opts.map(e=>`<option>${e}</option>`).join('');
- if(opts.includes(prev))sel.value=prev;
-}
-$('chartExercise').onchange=drawCharts;
-
-function lineChart(canvas,points,label,unit){
- const c=canvas.getContext('2d'),W=canvas.width,H=canvas.height,pad=46;c.clearRect(0,0,W,H);c.fillStyle='#0b1326';c.fillRect(0,0,W,H);
- c.strokeStyle='#33415f';c.lineWidth=1;c.beginPath();c.moveTo(pad,20);c.lineTo(pad,H-pad);c.lineTo(W-18,H-pad);c.stroke();
- c.fillStyle='#8f9bb0';c.font='20px system-ui';c.fillText(label,pad,28);
- if(points.length<1){c.fillText('Not enough data yet',pad+20,H/2);return}
- let vals=points.map(p=>p.v),min=Math.min(...vals),max=Math.max(...vals);if(min===max){min-=1;max+=1}else{let m=(max-min)*.15;min-=m;max+=m}
- const x=i=>points.length===1?W/2:pad+i*(W-pad-25)/(points.length-1),y=v=>20+(max-v)*(H-pad-30)/(max-min);
- c.strokeStyle='#8de6b1';c.lineWidth=4;c.beginPath();points.forEach((p,i)=>i?c.lineTo(x(i),y(p.v)):c.moveTo(x(i),y(p.v)));c.stroke();
- points.forEach((p,i)=>{c.fillStyle='#8de6b1';c.beginPath();c.arc(x(i),y(p.v),6,0,Math.PI*2);c.fill()});
- c.fillStyle='#cbd5e1';c.font='16px system-ui';c.fillText(max.toFixed(1)+unit,4,35);c.fillText(min.toFixed(1)+unit,4,H-pad);
-}
-function strengthPoints(ex){
- return S.gym.filter(g=>g.exercises&&g.exercises[ex]).map(g=>{let sets=g.exercises[ex];let best=sets.slice().sort((a,b)=>b.weight-a.weight||b.reps-a.reps)[0];return {d:g.date.slice(0,10),v:best.weight}});
-}
-function drawCharts(){
- if(!$('weightChart'))return;
- lineChart($('weightChart'),S.weights.map(w=>({d:w.date,v:w.value})),'Weight trend',' kg');
- let ex=$('chartExercise').value||allExercises[0];lineChart($('strengthChart'),strengthPoints(ex),ex,' kg');
-}
-
-function pdfEsc(s){return String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')}
-function pdfText(cmd,x,y,size,text,bold=false){cmd.push(`BT /${bold?'F2':'F1'} ${size} Tf ${x} ${y} Td (${pdfEsc(text)}) Tj ET`)}
-function pdfChart(cmd,points,x,y,w,h,title,unit){
- pdfText(cmd,x,y+h+12,11,title,true);cmd.push(`0.75 G ${x} ${y} ${w} ${h} re S`);
- if(!points.length){pdfText(cmd,x+8,y+h/2,9,'No data yet');return}
- let vals=points.map(p=>p.v),min=Math.min(...vals),max=Math.max(...vals);if(min===max){min-=1;max+=1}
- let px=i=>points.length===1?x+w/2:x+8+i*(w-16)/(points.length-1),py=v=>y+8+(v-min)*(h-16)/(max-min);
- cmd.push('0.15 0.55 0.35 RG 1.5 w');for(let i=1;i<points.length;i++)cmd.push(`${px(i-1).toFixed(2)} ${py(points[i-1].v).toFixed(2)} m ${px(i).toFixed(2)} ${py(points[i].v).toFixed(2)} l S`);
- cmd.push('0 G');pdfText(cmd,x+2,y+h-10,7,max.toFixed(1)+unit);pdfText(cmd,x+2,y+3,7,min.toFixed(1)+unit);
-}
-function makePdf(){
- const pages=[];let c=[],y=810;
- const addPage=()=>{if(c.length)pages.push(c.join('\n'));c=[];y=810};
- const line=(text,size=9,bold=false,indent=42)=>{if(y<45)addPage();pdfText(c,indent,y,size,text,bold);y-=size+5};
- line("Soma's Cut Quest - Progress Report",20,true);line('Generated '+new Date().toLocaleString(),8);y-=4;
- line(`Level ${Math.floor(S.xp/250)+1}   XP: ${S.xp}   Start: 102.3 kg   Current: ${S.weight.toFixed(1)} kg`,11);
- let last=S.days.at(-1);if(last)line(`Latest day: ${last.cal} kcal | ${last.protein} g protein | ${last.steps} steps`,10);
- y-=8;pdfChart(c,S.weights.map(w=>({v:w.value})),42,y-120,510,110,'Weight trend',' kg');y-=150;
- let ex=$('chartExercise').value||allExercises[0];pdfChart(c,strengthPoints(ex),42,y-120,510,110,'Strength trend - '+ex,' kg');y-=150;
- line('Recent weigh-ins',12,true);S.weights.slice(-8).reverse().forEach(w=>line(`${w.date}    ${w.value.toFixed(1)} kg`,9,false,50));
- y-=6;line('Recent workouts',12,true);S.gym.slice(-8).reverse().forEach(g=>line(`${g.date.slice(0,10)}    ${g.type}    ${g.prs||0} PR(s)`,9,false,50));
- y-=6;line('Current personal records',12,true);Object.entries(S.prs).forEach(([e,p])=>line(`${e}: ${p.weight} kg x ${p.reps}`,9,false,50));
- addPage();
- const objs=[];const add=o=>{objs.push(o);return objs.length};
- const font1=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
- const font2=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
- const pageIds=[];const contentIds=[];
- pages.forEach(stream=>{contentIds.push(add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`));pageIds.push(add('PENDING'))});
- const pagesId=add('PAGES_PENDING');const catalogId=add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
- pageIds.forEach((pid,i)=>objs[pid-1]=`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >> >> /Contents ${contentIds[i]} 0 R >>`);
- objs[pagesId-1]=`<< /Type /Pages /Kids [${pageIds.map(id=>id+' 0 R').join(' ')}] /Count ${pageIds.length} >>`;
- let pdf='%PDF-1.4\n',offsets=[0];objs.forEach((o,i)=>{offsets.push(pdf.length);pdf+=`${i+1} 0 obj\n${o}\nendobj\n`});let xref=pdf.length;
- pdf+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
- pdf+=`trailer\n<< /Size ${objs.length+1} /Root ${catalogId} 0 R >>\nstartxref\n${xref}\n%%EOF`;
- return new Blob([pdf],{type:'application/pdf'});
-}
-$('exportPdf').onclick=()=>{const blob=makePdf(),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Soma-Cut-Quest-Progress.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
-
-$('resetAll').onclick=()=>{if(confirm('Reset all Cut Quest progress? This cannot be undone.')){localStorage.removeItem(KEY);localStorage.removeItem(OLDKEY);location.reload()}};
-if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
-buildExercises();render();
+const KEY='somaCutQuestV2',OLDKEY='somaCutQuestV1',START_WEIGHT=102.3,CAL_TARGET=2300;
+const exercises={Push:['Incline Press','Flat Bench Press','Pec Deck / Chest Press','Shoulder Press','Lateral Cable Raise','Triceps Pushdown','Overhead Triceps Extension'],Pull:['Lat Pulldown','Cable Row','Rear-Delt Fly / Face Pull','Hammer Curl','Cable Preacher / Preacher Curl'],Legs:['Leg Press','Romanian Deadlift','Seated Hamstring Curl','Leg Extension','Calf Raise']};
+const allExercises=[...exercises.Push,...exercises.Pull,...exercises.Legs],$=id=>document.getElementById(id);
+function localDate(d=new Date()){let y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return `${y}-${m}-${day}`}
+function dateDiff(a,b){return Math.round((new Date(a+'T12:00:00')-new Date(b+'T12:00:00'))/864e5)}
+function fresh(){return {xp:0,weight:START_WEIGHT,weights:[],days:[],gym:[],prs:{},login:{last:null,streak:0,total:0},weeklyClaims:{},achievements:{},version:3}}
+let S=JSON.parse(localStorage.getItem(KEY)||'null');if(!S){let old=JSON.parse(localStorage.getItem(OLDKEY)||'null');S=old||fresh()}
+function migrate(){S.xp=+S.xp||0;S.weight=+S.weight||START_WEIGHT;S.weights=S.weights||[];S.days=S.days||[];S.gym=S.gym||[];S.prs=S.prs||{};S.login=S.login||{last:null,streak:0,total:0};S.login.streak=+S.login.streak||0;S.login.total=+S.login.total||0;S.weeklyClaims=S.weeklyClaims||{};S.achievements=S.achievements||{};S.version=3;localStorage.setItem(KEY,JSON.stringify(S))}migrate();
+function save(noRender=false){localStorage.setItem(KEY,JSON.stringify(S));if(!noRender)render()}
+function weekKey(d=new Date()){let x=new Date(d);x.setHours(12,0,0,0);let day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);return localDate(x)}
+function currentDay(){return S.days.findLast?S.days.findLast(d=>d.date===localDate()):S.days.filter(d=>d.date===localDate()).slice(-1)[0]||{}}
+function loginReward(){let t=localDate();if(S.login.last===t)return null;let gap=S.login.last?dateDiff(t,S.login.last):99;S.login.streak=gap===1?S.login.streak+1:1;S.login.last=t;S.login.total++;let bonus=Math.min(10,S.login.streak-1),pts=5+bonus;S.xp+=pts;save(true);return {pts,streak:S.login.streak}}
+const loginHit=loginReward();
+function dailyScore(d){if(!d)return 0;return 10+(d.protein>=150?25:0)+(d.steps>=8000?20:0)+(d.balanced?15:0)+(d.honest?10:0)+(d.cal>0&&Math.abs(d.cal-CAL_TARGET)<=200?10:0)}
+function gymThisWeek(){let start=weekKey();return S.gym.filter(g=>(g.date||'').slice(0,10)>=start).length}
+function daysThisWeek(){let start=weekKey();return S.days.filter(d=>d.date>=start)}
+function claimWeekly(){let k=weekKey(),c=S.weeklyClaims[k]||{};let ds=daysThisWeek(),changed=false,msg=[];let quests=[['gym3',gymThisWeek()>=3,40,'3 gym sessions'],['logs5',new Set(ds.map(d=>d.date)).size>=5,30,'5 daily logs'],['protein4',new Set(ds.filter(d=>d.protein>=150).map(d=>d.date)).size>=4,25,'Protein target on 4 days']];quests.forEach(([id,ok,xp,name])=>{if(ok&&!c[id]){c[id]=true;S.xp+=xp;changed=true;msg.push(`${name} +${xp} XP`)}});S.weeklyClaims[k]=c;if(changed)save(true);return msg}
+function weeklyStatus(){let k=weekKey(),c=S.weeklyClaims[k]||{},ds=daysThisWeek();return [{name:'3 gym sessions',n:gymThisWeek(),goal:3,done:c.gym3},{name:'5 daily logs',n:new Set(ds.map(d=>d.date)).size,goal:5,done:c.logs5},{name:'Protein target on 4 days',n:new Set(ds.filter(d=>d.protein>=150).map(d=>d.date)).size,goal:4,done:c.protein4}]}
+function weeklyAverages(){let map={};S.weights.forEach(w=>{let k=weekKey(new Date(w.date+'T12:00:00'));(map[k]??=[]).push(+w.value)});return Object.entries(map).sort().map(([d,a])=>({d,v:a.reduce((x,y)=>x+y,0)/a.length}))}
+function exerciseStats(ex){let sessions=0,sets=0,volume=0;S.gym.forEach(g=>{let a=g.exercises&&g.exercises[ex];if(a){sessions++;sets+=a.length;volume+=a.reduce((n,s)=>n+(+s.weight||0)*(+s.reps||0),0)}});return {sessions,sets,volume,level:1+Math.floor(sets/12)}}
+function achievementDefs(){let uniqueDays=new Set(S.days.map(d=>d.date)).size;return [['firstLog','Quest Begun',uniqueDays>=1],['weekLog','Seven Seals',uniqueDays>=7],['firstWorkout','Entered the Arena',S.gym.length>=1],['tenWorkouts','Arena Regular',S.gym.length>=10],['firstPR','Limit Breaker',Object.keys(S.prs).length>=1],['sub100','Boss Breaker: 100',S.weight<100],['protein10','Protein Hunter',new Set(S.days.filter(d=>d.protein>=150).map(d=>d.date)).size>=10],['login7','Seven-Day Summon',S.login.streak>=7]]}
+function updateAchievements(){let changed=false;achievementDefs().forEach(([id,,ok])=>{if(ok&&!S.achievements[id]){S.achievements[id]=localDate();S.xp+=20;changed=true}});if(changed)save(true)}
+function render(){claimWeekly();updateAchievements();$('xp').textContent=S.xp;$('level').textContent=Math.floor(S.xp/250)+1;$('xpToLevel').textContent=250-(S.xp%250);$('currentWeight').textContent=S.weight.toFixed(1);$('todayLabel').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'});let d=currentDay();$('remaining').textContent=CAL_TARGET-(d.cal||0);$('proteinNow').textContent=d.protein||0;$('stepsNow').textContent=(d.steps||0).toLocaleString();$('loginStreak').textContent=S.login.streak;let gw=gymThisWeek();$('gymWeek').textContent=gw;$('gymWeekDaily').textContent=gw;let pct=Math.max(0,Math.min(100,(START_WEIGHT-S.weight)/2.4*100));$('bossBar').style.width=pct+'%';let av=weeklyAverages();$('weeklyAvg').textContent=av.length?av.at(-1).v.toFixed(1)+' kg':'—';$('weights').innerHTML=S.weights.slice(-10).reverse().map(w=>`<div class='mission'><span>${w.date}</span><strong>${(+w.value).toFixed(1)} kg</strong></div>`).join('')||'<p>No weigh-ins logged yet.</p>';$('workouts').innerHTML=S.gym.slice(-8).reverse().map(g=>`<div class='workoutRow'><span>${(g.date||'').slice(0,10)} · ${g.type}</span><strong>${g.prs||0} PR${(g.prs||0)===1?'':'s'}</strong></div>`).join('')||'<p>No workouts logged yet.</p>';renderMissions(d);renderWeekly();renderAchievements();populateChartExercise();drawCharts()}
+function renderMissions(d){let ms=[['Calories around target',d.cal>0&&Math.abs(d.cal-CAL_TARGET)<=200],['Protein 150g+',d.protein>=150],['8,000+ steps',d.steps>=8000],['Balanced portions',d.balanced],['Honest log',d.honest]];$('missions').innerHTML=ms.map(m=>`<div class='mission ${m[1]?'done':''}'><span>${m[1]?'✓':'○'} ${m[0]}</span><strong>${m[1]?'Complete':''}</strong></div>`).join('')}
+function renderWeekly(){$('weeklyQuests').innerHTML=weeklyStatus().map(q=>`<div class='mission ${q.done?'done':''}'><span>${q.done?'✓':'○'} ${q.name}</span><strong>${q.done?'Claimed':Math.min(q.n,q.goal)+'/'+q.goal}</strong></div>`).join('')}
+function renderAchievements(){$('achievements').innerHTML=achievementDefs().map(([id,name,ok])=>`<div class='achievement ${ok?'':'locked'}'><span>${ok?'🏆':'🔒'} ${name}</span><strong>${ok?(S.achievements[id]||'Unlocked'):'Locked'}</strong></div>`).join('')}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab,nav button').forEach(x=>x.classList.remove('active'));b.classList.add('active');$(b.dataset.tab).classList.add('active');if(b.dataset.tab==='progress')drawCharts()});
+function fillToday(){let d=currentDay();$('cal').value=d.cal||'';$('protein').value=d.protein||'';$('steps').value=d.steps||'';$('balanced').checked=!!d.balanced;$('honest').checked=!!d.honest}
+function clearDayForm(){['cal','protein','steps','weight'].forEach(id=>$(id).value='');['balanced','honest'].forEach(id=>$(id).checked=false);$('dayMsg').textContent='Form cleared. Saved progress is untouched.'}$('newDay').onclick=clearDayForm;
+$('saveDay').onclick=()=>{let cal=+$('cal').value,protein=+$('protein').value,steps=+$('steps').value,w=+$('weight').value;if(!cal&&!protein&&!steps){$('dayMsg').textContent='Enter today’s numbers first.';return}let date=localDate(),old=currentDay(),oldPts=dailyScore(old),day={date,cal,protein,steps,balanced:$('balanced').checked,honest:$('honest').checked};let idx=S.days.map(x=>x.date).lastIndexOf(date);if(idx>=0)S.days[idx]=day;else S.days.push(day);let newPts=dailyScore(day),gain=Math.max(0,newPts-oldPts);S.xp+=gain;if(w>=40&&w<=250){S.weight=w;let wi=S.weights.map(x=>x.date).lastIndexOf(date);if(wi>=0)S.weights[wi]={date,value:w};else S.weights.push({date,value:w})}$('dayMsg').textContent=gain?`Quest updated: +${gain} XP from newly completed missions.`:'Saved. No duplicate XP awarded for missions already claimed today.';save()};
+let draftSets={};function setKey(type,e){return type+'|'+e}function defaultSets(type,e){let k=setKey(type,e);if(!draftSets[k])draftSets[k]=[{weight:'',reps:''},{weight:'',reps:''},{weight:'',reps:''}];return draftSets[k]}
+function buildExercises(){let type=$('workout').value;$('exerciseList').innerHTML=exercises[type].map((e,i)=>{let pr=S.prs[e],sets=defaultSets(type,e),st=exerciseStats(e);return `<div class='exercise'><div class='exerciseTop'><div><strong>${e}</strong><div>${pr?`Best: ${pr.weight} kg × ${pr.reps} <span class='badge'>PR</span>`:'No score yet'}</div><div class='exerciseLevel'>Exercise LV ${st.level} · ${st.sets} working sets logged</div></div><button class='addSet' data-add='${i}' type='button'>+ Set</button></div><div class='sets'>${sets.map((s,j)=>setRow(i,j,s)).join('')}</div></div>`}).join('');document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{let e=exercises[type][+b.dataset.add];defaultSets(type,e).push({weight:'',reps:''});buildExercises()});bindSetInputs()}
+function setRow(i,j,s){return `<div class='setRow'><div class='setNo'>Set ${j+1}</div><label>kg<input data-set-ex='${i}' data-set='${j}' data-k='weight' type='number' min='0' step='.5' value='${s.weight}'></label><label>reps<input data-set-ex='${i}' data-set='${j}' data-k='reps' type='number' min='0' value='${s.reps}'></label><button class='removeSet' data-remove-ex='${i}' data-remove='${j}' type='button'>×</button></div>`}
+function bindSetInputs(){let type=$('workout').value;document.querySelectorAll('[data-set-ex]').forEach(inp=>inp.oninput=()=>{let e=exercises[type][+inp.dataset.setEx];defaultSets(type,e)[+inp.dataset.set][inp.dataset.k]=inp.value});document.querySelectorAll('[data-remove-ex]').forEach(b=>b.onclick=()=>{let e=exercises[type][+b.dataset.removeEx],a=defaultSets(type,e);if(a.length>1)a.splice(+b.dataset.remove,1);buildExercises()})}$('workout').onchange=buildExercises;
+$('saveGym').onclick=()=>{let type=$('workout').value,prs=0,logged=0,sessionExercises={};exercises[type].forEach(e=>{let sets=defaultSets(type,e).map(s=>({weight:+s.weight,reps:+s.reps})).filter(s=>s.weight>0&&s.reps>0);if(!sets.length)return;logged++;sessionExercises[e]=sets;let best=sets.slice().sort((a,b)=>b.weight-a.weight||b.reps-a.reps)[0],old=S.prs[e];if(!old||best.weight>old.weight||(best.weight===old.weight&&best.reps>old.reps)){S.prs[e]={weight:best.weight,reps:best.reps};prs++}});if(!logged){$('gymMsg').textContent='Log at least one exercise set.';return}let pts=30+prs*15;S.xp+=pts;S.gym.push({date:new Date().toISOString(),type,prs,exercises:sessionExercises});$('gymMsg').textContent=`${type} cleared: +${pts} XP${prs?` · ${prs} new PR${prs>1?'s':''}!`:' · Consistency XP earned.'}`;Object.keys(draftSets).filter(k=>k.startsWith(type+'|')).forEach(k=>delete draftSets[k]);save();buildExercises()};
+function populateChartExercise(){let sel=$('chartExercise'),prev=sel.value,used=allExercises.filter(e=>S.gym.some(g=>g.exercises&&g.exercises[e])),opts=used.length?used:allExercises;sel.innerHTML=opts.map(e=>`<option>${e}</option>`).join('');if(opts.includes(prev))sel.value=prev}$('chartExercise').onchange=drawCharts;
+function lineChart(canvas,points,label,unit){let c=canvas.getContext('2d'),W=canvas.width,H=canvas.height,pad=46;c.clearRect(0,0,W,H);c.fillStyle='#0b1326';c.fillRect(0,0,W,H);c.strokeStyle='#33415f';c.lineWidth=1;c.beginPath();c.moveTo(pad,20);c.lineTo(pad,H-pad);c.lineTo(W-18,H-pad);c.stroke();c.fillStyle='#8f9bb0';c.font='20px system-ui';c.fillText(label,pad,28);if(!points.length){c.fillText('Not enough data yet',pad+20,H/2);return}let vals=points.map(p=>p.v),min=Math.min(...vals),max=Math.max(...vals);if(min===max){min-=1;max+=1}else{let m=(max-min)*.15;min-=m;max+=m}let x=i=>points.length===1?W/2:pad+i*(W-pad-25)/(points.length-1),y=v=>20+(max-v)*(H-pad-30)/(max-min);c.strokeStyle='#8de6b1';c.lineWidth=4;c.beginPath();points.forEach((p,i)=>i?c.lineTo(x(i),y(p.v)):c.moveTo(x(i),y(p.v)));c.stroke();points.forEach((p,i)=>{c.fillStyle='#8de6b1';c.beginPath();c.arc(x(i),y(p.v),6,0,Math.PI*2);c.fill()});c.fillStyle='#cbd5e1';c.font='16px system-ui';c.fillText(max.toFixed(1)+unit,4,35);c.fillText(min.toFixed(1)+unit,4,H-pad)}
+function strengthPoints(ex){return S.gym.filter(g=>g.exercises&&g.exercises[ex]).map(g=>{let best=g.exercises[ex].slice().sort((a,b)=>b.weight-a.weight||b.reps-a.reps)[0];return {d:(g.date||'').slice(0,10),v:best.weight}})}
+function drawCharts(){if(!$('weightChart'))return;lineChart($('weightChart'),S.weights.map(w=>({d:w.date,v:+w.value})),'Weight trend',' kg');lineChart($('avgChart'),weeklyAverages(),'Weekly average',' kg');let ex=$('chartExercise').value||allExercises[0];lineChart($('strengthChart'),strengthPoints(ex),ex,' kg');let st=exerciseStats(ex);$('exerciseSummary').textContent=`Exercise LV ${st.level} · ${st.sessions} sessions · ${st.sets} working sets · ${Math.round(st.volume).toLocaleString()} kg total logged volume.`}
+function pdfEsc(s){return String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')}function pdfText(cmd,x,y,size,text,bold=false){cmd.push(`BT /${bold?'F2':'F1'} ${size} Tf ${x} ${y} Td (${pdfEsc(text)}) Tj ET`)}function pdfChart(cmd,points,x,y,w,h,title,unit){pdfText(cmd,x,y+h+12,11,title,true);cmd.push(`0.75 G ${x} ${y} ${w} ${h} re S`);if(!points.length){pdfText(cmd,x+8,y+h/2,9,'No data yet');return}let vals=points.map(p=>p.v),min=Math.min(...vals),max=Math.max(...vals);if(min===max){min-=1;max+=1}let px=i=>points.length===1?x+w/2:x+8+i*(w-16)/(points.length-1),py=v=>y+8+(v-min)*(h-16)/(max-min);cmd.push('0.15 0.55 0.35 RG 1.5 w');for(let i=1;i<points.length;i++)cmd.push(`${px(i-1).toFixed(2)} ${py(points[i-1].v).toFixed(2)} m ${px(i).toFixed(2)} ${py(points[i].v).toFixed(2)} l S`);cmd.push('0 G');pdfText(cmd,x+2,y+h-10,7,max.toFixed(1)+unit);pdfText(cmd,x+2,y+3,7,min.toFixed(1)+unit)}
+function makePdf(){let pages=[],c=[],y=810,addPage=()=>{if(c.length)pages.push(c.join('\n'));c=[];y=810},line=(text,size=9,bold=false,indent=42)=>{if(y<45)addPage();pdfText(c,indent,y,size,text,bold);y-=size+5};line("Soma's Cut Quest v3 - Progress Report",20,true);line('Generated '+new Date().toLocaleString(),8);line(`Level ${Math.floor(S.xp/250)+1}   XP: ${S.xp}   Login streak: ${S.login.streak} days`,11);line(`Start: ${START_WEIGHT} kg   Current: ${S.weight.toFixed(1)} kg`,11);let last=S.days.at(-1);if(last)line(`Latest day: ${last.cal} kcal | ${last.protein} g protein | ${last.steps} steps`,10);y-=8;pdfChart(c,S.weights.map(w=>({v:+w.value})),42,y-105,510,95,'Weight trend',' kg');y-=130;pdfChart(c,weeklyAverages(),42,y-105,510,95,'Weekly average',' kg');y-=130;let ex=$('chartExercise').value||allExercises[0];pdfChart(c,strengthPoints(ex),42,y-105,510,95,'Strength - '+ex,' kg');y-=130;line('Recent workouts',12,true);S.gym.slice(-8).reverse().forEach(g=>line(`${(g.date||'').slice(0,10)}    ${g.type}    ${g.prs||0} PR(s)`,9,false,50));line('Current personal records',12,true);Object.entries(S.prs).forEach(([e,p])=>line(`${e}: ${p.weight} kg x ${p.reps}`,9,false,50));addPage();let objs=[],add=o=>{objs.push(o);return objs.length},font1=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'),font2=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>'),pageIds=[],contentIds=[];pages.forEach(stream=>{contentIds.push(add(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`));pageIds.push(add('PENDING'))});let pagesId=add('PAGES_PENDING'),catalogId=add(`<< /Type /Catalog /Pages ${pagesId} 0 R >>`);pageIds.forEach((pid,i)=>objs[pid-1]=`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >> >> /Contents ${contentIds[i]} 0 R >>`);objs[pagesId-1]=`<< /Type /Pages /Kids [${pageIds.map(id=>id+' 0 R').join(' ')}] /Count ${pageIds.length} >>`;let pdf='%PDF-1.4\n',offsets=[0];objs.forEach((o,i)=>{offsets.push(pdf.length);pdf+=`${i+1} 0 obj\n${o}\nendobj\n`});let xref=pdf.length;pdf+=`xref\n0 ${objs.length+1}\n0000000000 65535 f \n`;for(let i=1;i<offsets.length;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';pdf+=`trailer\n<< /Size ${objs.length+1} /Root ${catalogId} 0 R >>\nstartxref\n${xref}\n%%EOF`;return new Blob([pdf],{type:'application/pdf'})}
+$('exportPdf').onclick=()=>{let blob=makePdf(),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='Soma-Cut-Quest-v3-Progress.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+$('downloadBackup').onclick=()=>{let payload={app:'Soma Cut Quest',version:3,exportedAt:new Date().toISOString(),storageKey:KEY,data:S},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`Soma-Cut-Quest-Backup-${localDate()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);$('vaultMsg').textContent='Backup downloaded. Keep it somewhere safe.'};$('restoreBackup').onclick=()=>$('backupFile').click();$('backupFile').onchange=async e=>{let f=e.target.files[0];if(!f)return;try{let j=JSON.parse(await f.text()),data=j.data||j;if(!data||!Array.isArray(data.days)||!Array.isArray(data.gym))throw Error();if(!confirm('Restore this backup? It will replace the current local save on this device.'))return;S=data;migrate();location.reload()}catch{$('vaultMsg').textContent='That file does not look like a valid Cut Quest backup.'}};
+$('resetAll').onclick=()=>{if(confirm('Reset all Cut Quest progress? Download a backup first. This cannot be undone.')){localStorage.removeItem(KEY);localStorage.removeItem(OLDKEY);location.reload()}};
+if(loginHit){$('loginBanner').classList.add('show');$('loginBanner').textContent=`Daily login claimed: +${loginHit.pts} XP · ${loginHit.streak}-day streak. Missing a day only resets the streak — it never removes progress.`}
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});buildExercises();fillToday();render();
